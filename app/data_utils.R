@@ -19,11 +19,9 @@ multipoly <- SpatialPointsDataFrame(multipoly[,c("LON","LAT")],multipoly)
 
 # Load data
 sel_CMIP5_dat <- function(locations) {
-  
   # find closest location with available data
   LATS <- clim_dat$LAT
   LONS <- clim_dat$LON
-  
   # iterate through selected points to find nearest data
   locs <- data.frame(LAT = c(), LON = c())
   for (i in 1:dim(locations)[1]){
@@ -32,16 +30,14 @@ sel_CMIP5_dat <- function(locations) {
     locs <- rbind(locs, c(close_lat, close_lon))
   }
   locs <- locs %>% rename(LAT = 1, LON = 2)
-  
-  
   # select data corresponding to these points
   dat_all_locs <- subset(clim_dat, (LAT %in% locs$LAT) & (LON %in% locs$LON)) %>% drop_na()
   dat_all_locs <- dat_all_locs %>% select(c(-X, -LAT, -LON))
-  
+
   # summarize across all selected locations
-  dat_combi <- dat_all_locs %>% group_by(YR, RCP) %>% 
+  dat_combi <- dat_all_locs %>% group_by(YR, RCP) %>%
     summarize(mean_temp = mean(meantmp), mean_temp_LB = mean(meantmp.1), mean_temp_UB = mean(meantmp.2),
-              max_temp = mean(maxtmp), max_temp_LB = mean(maxtmp.1), max_temp_UB = mean(maxtmp.2),
+              max_temp = mean(maxtmp), max_temp_LB = mean(maxtmp.1), max_temp_UB = mean(maxtmp.2))
               min_temp = mean(mintmp), min_temp_LB = mean(mintmp.1), min_temp_UB = mean(mintmp.2),
               precip = mean(precip), precip_LB = mean(precip.1), precip_UB = mean(precip.2)) %>%
     ungroup()
@@ -50,10 +46,30 @@ sel_CMIP5_dat <- function(locations) {
 
 sel_CMIP5_mon <- function(locations) {
 
-# continue indexing location here
+    # find closest locations with present input data
+    LATS <- clim_mon$LAT
+    LONS <- clim_mon$LON
+    # iterate through select points in dataframe and conduct matching
+    locs <- data.frame(LAT = c(), LON = c())
+    for (i in 1:dim(locations)[1]){
+        close_lat <- LATS[which.min(abs(LATS-locations[i,]$LAT))]
+        close_lon <- LONS[which.min(abs(LONS-locations[i,]$LON))]
+        locs <- rbind(locs, c(close_lat, close_lon))
+    }
+    locs <- locs %>% rename(LAT = 1, LON = 2)
+    # select data corresponding to these points
+    dat_all_locs <- subset(clim_mon, (LAT %>% locs$LAT) & (LON %in% locs$LON)) %>% drop_na()
+    dat_all_locs <- dat_all_locs %>% select(c(-V1, -LAT, -LON))
 
-
-}
+    # summarize across relevant locations
+    dat_combi <- dat_all_locs %>% group_by(YR, RCP, MON) %>%
+        summarize(mean_temp = mean(meantmp),
+                 max_temp = mean(maxtmp),
+                 min_temp = mean(mintmp),
+                 precip = mean(precip)) %>%
+        ungroup()
+    return(dat_combi)
+    }
 
 
 summary_stats <- function(dat, year1, year2, RCP){
@@ -67,5 +83,26 @@ summary_stats <- function(dat, year1, year2, RCP){
         dplyr::filter(YR == year2 &
                 RCP == RCP)
 
+    df <- data.frame(Metric = c("Yearly Mean Temp",
+                              "Yearly Average Max Temp",
+                              "Yearly Average Min Temp",
+                              "Annual Precipitation"),
+                   Unit = c("°C", "°C", "°C", "mm/yr"),
+                   Year1 = c(round(mean(yr1$mean_temp, na.rm = T), 2),
+                             round(mean(yr1$max_temp, na.rm = T), 2),
+                             round(mean(yr1$min_temp, na.rm = T), 2),
+                             round(mean(yr1$precip, na.rm = T)*365, 2)),
+                   Year2 = c(round(mean(yr2$mean_temp, na.rm = T), 2),
+                             round(mean(yr2$max_temp, na.rm = T), 2),
+                             round(mean(yr2$min_temp, na.rm = T), 2),
+                             round(mean(yr2$precip, na.rm = T)*365, 2))) %>%
+    mutate(Difference = Year2 - Year1,
+           Difference = round(Difference, 2))
+
+  colnames(df)[3] <- paste(year1)
+  colnames(df)[4] <- paste(year2)
+  df %>%
+    DT::datatable(options = list(dom = 't'))
+  # data.frame(df)
 
 }
